@@ -1,0 +1,11 @@
+description "Docker container {{ docker_container.name }}"
+author "Gerben Geijteman | DevOps FD Mediagroep"
+start on filesystem and started docker
+stop on runlevel [!2345]
+respawn
+script
+  /usr/bin/docker start -a {{ docker_container.name }}
+end script
+pre-stop script
+  /usr/bin/docker stop {{ docker_container.name }}
+end script

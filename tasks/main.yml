@@ -1,0 +1,90 @@
+---
+- name: clean up instances that are not used
+  shell: "docker ps --format '{{ '{{' }} .Names {{ '}}' }}'" # nasty, docker uses curly brackets too!
+  register: currently_present
+  changed_when: False
+
+#- debug: var=currently_present
+
+- name: determine which instances to be present
+  set_fact:
+    should_be_present: "{{ docker_containers | map(attribute='name') | list | unique }}"
+
+#- debug: var=should_be_present
+
+- name: determine what instance will get removed
+  set_fact:
+    should_be_removed: "{{ currently_present.stdout_lines | difference(should_be_present) }}"
+
+#- debug: var=should_be_removed
+
+- name: remove unwanted containers
+  docker_container:
+    name: "{{ item }}"
+    state: absent
+  with_items:
+    - "{{ should_be_removed }}"
+
+- name: remove related images
+  shell: "docker rmi $(docker images | grep '{{ item }}' | awk '{print $1}')"
+  with_items:
+    - "{{ should_be_removed }}"
+
+- name: remove upstart files
+  file:
+    path: "/etc/init/docker-{{ item }}.conf"
+    state: absent
+  with_items:
+    - "{{ should_be_removed }}"
+
+- name: remove symlinks
+  file:
+    path: "/etc/init.d/docker-{{ item }}"
+    state: absent
+  with_items:
+    - "{{ should_be_removed }}"
+
+- name: instance container
+  docker_container:
+    name: "{{ docker_container.name }}"
+    image: "{{ docker_container.image | default(docker_container.name) }}"
+    state: started
+    published_ports: "{{ docker_container.published_ports | default(omit) }}"
+    env: "{{ docker_container.env | default('{}') }}"
+  loop_control:
+    loop_var: docker_container
+  with_items:
+    - "{{ docker_containers }}"
+
+- name: ensure upstart
+  template:
+    src: upstart.j2
+    dest: "/etc/init/docker-{{ docker_container.name }}.conf"
+  loop_control:
+    loop_var: docker_container
+  with_items:
+    - "{{ docker_containers }}"
+
+- name: symlink upstart script
+  file:
+    src: /lib/init/upstart-job
+    dest: "/etc/init.d/docker-{{ docker_container.name }}"
+    owner: root
+    group: root
+    mode: 0755
+    force: yes
+    state: link
+  loop_control:
+    loop_var: docker_container
+  with_items:
+    - "{{ docker_containers }}"
+
+- name: ensure service is starting on bootup
+  service:
+    name: "docker-{{ docker_container.name }}"
+    state: started
+    enabled: yes
+  loop_control:
+    loop_var: docker_container
+  with_items:
+    - "{{ docker_containers }}"
