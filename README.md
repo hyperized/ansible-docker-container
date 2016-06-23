@@ -1,9 +1,11 @@
 # ansible-docker-container
-An Ansible Docker container role for Ubuntu 14.04 with Upstart scripts
+An Ansible Docker container role for Ubuntu 14.04 with Upstart scripts.
 
 ## Prerequisites
 
-This role assumes you run a docker daemon on Ubuntu 14.04
+This role assumes you run a docker daemon on Ubuntu 14.04.
+
+Ansible 2.1 is also required.
 
 ## Usage
 
